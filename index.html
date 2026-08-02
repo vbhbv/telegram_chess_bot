@@ -3,110 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram Chess</title>
+    <title>Telegram Chess Mini App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
     <style>
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 10px;
-        }
-        #board {
-            width: 90vw;
-            max-width: 400px;
-            margin-bottom: 20px;
-        }
-        .status-box {
-            font-size: 16px;
-            font-weight: bold;
-            background: #1e1e1e;
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: 1px solid #333;
-        }
+        body { font-family: sans-serif; text-align: center; background-color: #151515; color: white; margin: 0; padding: 10px; }
+        #board { width: 90vw; max-width: 400px; margin: 20px auto; }
     </style>
 </head>
 <body>
-
-    <div id="status" class="status-box">جاري الاتصال بالسيرفر...</div>
-    <br>
+    <h2>لعبة الشطرنج المباشرة ♟️</h2>
     <div id="board"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const gameId = urlParams.get('game_id');
-        const userId = urlParams.get('user_id') || tg.initDataUnsafe?.user?.id || 0;
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/${gameId}/${userId}`;
-        const socket = new WebSocket(wsUrl);
-
-        let board = null;
-        let game = new Chess();
-
-        function onDrop(source, target) {
-            const move = game.move({
-                from: source,
-                to: target,
-                promotion: 'q'
-            });
-
-            if (move === null) return 'snapback';
-
-            socket.send(JSON.stringify({
-                action: 'move',
-                move: source + target
-            }));
-        }
-
-        function updateStatus(statusText) {
-            document.getElementById('status').innerText = statusText;
-        }
-
-        socket.onopen = () => {
-            updateStatus("تم الاتصال. التقط حركتك!");
-        };
-
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'init' || data.type === 'move') {
-                game.load(data.fen);
-                board.position(data.fen);
-
-                if (data.status === 'checkmate') {
-                    updateStatus("كش مات! انتهت اللعبة.");
-                } else if (data.status === 'draw') {
-                    updateStatus("تعادل!");
-                } else {
-                    updateStatus(data.turn === 'white' ? "دور الأبيض" : "دور الأسود");
-                }
-            } else if (data.type === 'error') {
-                updateStatus("خطأ: " + data.message);
-            }
-        };
-
-        board = Chessboard('board', {
+        const board = Chessboard('board', {
             draggable: true,
             position: 'start',
-            onDrop: onDrop,
-            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+            onDrop: handleMove
         });
+
+        // تحديد البروتوكول (ws أو wss) ديناميكياً
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+
+        ws.onmessage = (event) => {
+            const moveData = JSON.parse(event.data);
+            board.position(moveData.position);
+        };
+
+        function handleMove(source, target) {
+            // إرسال الحركة فور وقوعها عبر WebSocket
+            setTimeout(() => {
+                ws.send(JSON.stringify({
+                    source: source,
+                    target: target,
+                    position: board.position()
+                }));
+            }, 250);
+        }
     </script>
 </body>
 </html>
-
